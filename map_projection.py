@@ -346,13 +346,17 @@ def reprojection(obstime:str, center=None, layers=None, angle=0, psp_loc=None, m
         Time the AIA and STEREO maps should be projected to; e.g., '2021-11-10T12:00:00'.
     center : list
         A coordinate pair (x,y) marking the center of the FOV.
+    layers : list
+        List of values, in arcseconds, containing the adjustments
+        to the side lengths of the drawn squares. Each value results
+        in a new square drawn on the map.
     angle : int or float
         Anti-clockwise rotation from Solar north for NuSTAR field of view.
-    markers : list
-        List of (x,y) coordinate pairs.
     psp_loc : list
-        X and y coordinates of PSP to be marked on the map in arcsec. 
-        E.g., [0,100].
+        List of [x,y] coordinates, in arcseconds, of PSP to be marked on the map. 
+        E.g., [[0,100], [1000,500]] would mark two points, one at (0,100) and another (1000,500).
+    markers : list
+        List of [x,y] coordinate pairs, in arcseconds, to mark points of interest on the disk.
         
     Returns
     -------
