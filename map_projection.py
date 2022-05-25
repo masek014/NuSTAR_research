@@ -90,6 +90,35 @@ def most_recent_map(_map):
     return data_map 
 
 
+def plot_map(in_map, ax, cmap='gray', title=''):
+    """
+    Plot the provided map on the provided axes.
+
+    Parameters
+    ----------
+    in_map : Sunpy map
+        The input map to be projected.
+    ax : matplotlib.pyplot axes object
+        The axes the NuSTAR fov is to be drawn on.
+    cmap : str
+        The matplotlib colormap to use on the scale.
+    title : str
+        The title of the plot.
+    
+    Returns
+    -------
+    None
+    """
+    
+    in_map.plot(cmap=cmap, title=title)
+    in_map.draw_limb(color='black')
+    ax.tick_params(which='major', direction='in')
+    ax.grid(False)
+    ax.set(xlabel=X_LABEL, ylabel=Y_LABEL)
+    add_minor_ticks(ax)
+    plt.colorbar(fraction=0.046, pad=0.04)
+    
+
 def project_map(in_map, future_time):
     """
     Create a projection of an input map at the given input time.
@@ -135,7 +164,7 @@ def project_map(in_map, future_time):
     return out_warp
 
 
-def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], colors='red', rotate=0, pixscale=None):
+def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], colors='red', angle=0, pixscale=None):
     """
     Draw squares representing NuSTAR's field of view on the current map.
     
@@ -163,7 +192,7 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
         Otherwise, a list can be provided to customize the color
         of each layer. The index of the color will match the index
         of the layer.
-    rotate : int or float
+    angle : int or float
         Anti-clockwise rotation from Solar north for NuSTAR field of view.
     pixscale : float
         Arcsecond-to-pixel conversion for the original AIA or STEREO map.
@@ -180,9 +209,9 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
     
     FOV_SIDE_LENGTH = 12*60 # Units of arcseconds
 
-    rotate_str = ""
+    angle_str = ""
     for i, diff in enumerate(layers):
-        if rotate==0:
+        if angle==0:
             # Translate to bottom left corner of rectangle
             bottom_left = ((center_x - FOV_SIDE_LENGTH/2 - diff)*u.arcsec,
                            (center_y - FOV_SIDE_LENGTH/2 - diff)*u.arcsec)
@@ -191,7 +220,8 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
             in_map.draw_quadrangle(bottom_left=rect_bl,
                                      width=(FOV_SIDE_LENGTH+2*diff)*u.arcsec,
                                      height=(FOV_SIDE_LENGTH+2*diff)*u.arcsec,
-                                     color=colors[i])
+                                     color=colors[i],
+                                     axes=ax)
         else:
             # **kwargs dont get passed to matplotlib so not easy way to rotate, do it myself
             # get boxes in pixels, newer Sunpy doesn't allow draw_rectangle here
@@ -201,8 +231,8 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
             bx_arc_square, by_arc_square = -FOV_SIDE_LENGTH/2 - diff, -FOV_SIDE_LENGTH/2 - diff
             
             # rotate bottom left clockwise to find where box to-be-rotated to maintain centers needs to be
-            rot_mat = np.array([[np.cos(-rotate*(np.pi/180)), np.sin(-rotate*(np.pi/180))],
-                                [-np.sin(-rotate*(np.pi/180)), np.cos(-rotate*(np.pi/180))]]) @ np.array([bx_arc_square,by_arc_square])
+            rot_mat = np.array([[np.cos(-angle*(np.pi/180)), np.sin(-angle*(np.pi/180))],
+                                [-np.sin(-angle*(np.pi/180)), np.cos(-angle*(np.pi/180))]]) @ np.array([bx_arc_square,by_arc_square])
 
             bx_rotarc, by_rotarc = rot_mat[0], rot_mat[1]
             
@@ -217,9 +247,9 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
                                      facecolor="none", 
                                      linewidth=2, 
                                      edgecolor=colors[i], 
-                                     angle=rotate)
-            rotate_str = "Rotated "+str(rotate)+" deg Anti-clockwise"
-            plt.gca().add_patch(rect)
+                                     angle=angle)
+            angle_str = "Rotated "+str(angle)+" deg Anti-clockwise"
+            ax.add_patch(rect)
 
         # Add text on plot.
         # Determine the position of the text box.
@@ -242,12 +272,13 @@ def draw_nustar_fov(in_map, ax, center_x, center_y, layers=[-100, 0, 100], color
 
         # Format the string by removing the residual brackets and quotes.
         layers_str = str(list_of_strings).replace('[','').replace(']','').replace('\'','')
-        text_str = 'Center: ('+str(center_x)+'\",'+str(center_y)+'\")'+'\nBoxes 12\', ' + layers_str +"\n"+ rotate_str
+        text_str = 'Center: ('+str(center_x)+'\",'+str(center_y)+'\")'+'\nBoxes 12\', ' + layers_str +"\n"+ angle_str
         
         if len(layers)>0:
             # Add the text to the plot.
-            plt.text(text_x, text_y, text_str, color='red',
+            ax.text(text_x, text_y, text_str, color='red',
                      horizontalalignment='center', verticalalignment='center')
+
 
 def points_of_interest_marker(x, y, ax, frame):
     """
@@ -266,6 +297,7 @@ def points_of_interest_marker(x, y, ax, frame):
     -------
     None.
     """
+
     x_poi = x * u.arcsec # points of interest
     y_poi = y * u.arcsec 
     coords = SkyCoord(x_poi, y_poi, frame=frame.coordinate_frame)
@@ -304,7 +336,7 @@ def plot_psp_loc(x, y, ax, frame):
                      horizontalalignment='center', verticalalignment='top', size=8)
 
 
-def reprojection(obstime:str, center_x, center_y, layers, rotate=0, markers=None, psp_loc=None):
+def reprojection(obstime:str, center=None, layers=None, angle=0, psp_loc=None, markers=None):
     """
     Creates plot of the AIA and STEREO plot of a specific time projected onto a future time.
     
@@ -312,15 +344,12 @@ def reprojection(obstime:str, center_x, center_y, layers, rotate=0, markers=None
     ----------
     obstime : string
         Time the AIA and STEREO maps should be projected to; e.g., '2021-11-10T12:00:00'.
-    center_x : float
-        The x position, in arcseconds, of the squares' center point.
-    center_y : float
-        The y position, in arcseconds, of the squares' center point.
-    rotate : int or float
+    center : list
+        A coordinate pair (x,y) marking the center of the FOV.
+    angle : int or float
         Anti-clockwise rotation from Solar north for NuSTAR field of view.
     markers : list
-        List of x coordinates and y coordinates to be marked on the map in arcsec. 
-        E.g., [[0,100], [-200,600]] would mark coord (0,-200) and (100,600).
+        List of (x,y) coordinate pairs.
     psp_loc : list
         X and y coordinates of PSP to be marked on the map in arcsec. 
         E.g., [0,100].
@@ -333,79 +362,52 @@ def reprojection(obstime:str, center_x, center_y, layers, rotate=0, markers=None
     # For AIA.
     aiamap = most_recent_map(_map="aia")
     projected_aiamap = project_map(aiamap, obstime)
+    reversed_aia_cmap = (aiamap.cmap).reversed()
     print("Got AIA map.")
 
-    reversed_aia_cmap = (aiamap.cmap).reversed()
-
-    # original AIA map
+    # Original AIA map.
     ax1 = plt.subplot(2, 2, 1, projection=aiamap)
-    aiamap.plot(cmap=reversed_aia_cmap, title=f"Original AIA Map\nAIA " + \
+    plot_map(aiamap, ax1, reversed_aia_cmap, title=f"Original AIA Map\nAIA " + \
         str(AIA_WAVELENGTH) + f" {aiamap.date}")
-    aiamap.draw_limb(color='black')
-    ax1.tick_params(which='major', direction='in')
-    ax1.grid(False)
-    ax1.set_xlabel(X_LABEL)
-    ax1.set_ylabel(Y_LABEL)
-    add_minor_ticks(ax1)
-    plt.colorbar(fraction=0.046, pad=0.04)
 
-    # projected AIA map
+    # Projected AIA map.
     ax2 = plt.subplot(2, 2, 2, projection=projected_aiamap)
-    projected_aiamap.plot(cmap=reversed_aia_cmap, title="Reprojected to an Earth Observer\nAIA " + \
+    plot_map(projected_aiamap, ax2, reversed_aia_cmap, title="Reprojected to an Earth Observer\nAIA " + \
         str(AIA_WAVELENGTH) + f" {projected_aiamap.date}")
-    projected_aiamap.draw_limb(color='black')
-    ax2.tick_params(which='major', direction='in')
-    ax2.grid(False)
-    ax2.set_xlabel(X_LABEL)
-    ax2.set_ylabel(Y_LABEL)
-    add_minor_ticks(ax2)
-    plt.colorbar(fraction=0.046, pad=0.04)
-
-    draw_nustar_fov(projected_aiamap, ax2, center_x, center_y, layers, rotate=rotate, pixscale=u.Quantity(aiamap.scale).value[0])
 
     # For STEREO.
     stereomap = most_recent_map(_map="stereo")
     projected_stereomap = project_map(stereomap, obstime)
+    reversed_stereo_cmap = (stereomap.cmap).reversed()
     print("Got STEREO-A map.")
 
-    reversed_stereo_cmap = (stereomap.cmap).reversed()
-
-    # original STEREO map
+    # Original STEREO map.
     ax3 = plt.subplot(2, 2, 3, projection=stereomap)
-    stereomap.plot(cmap=reversed_stereo_cmap, title=f"Original STEREO Map\nSTEREO " + \
+    plot_map(stereomap, ax3, reversed_stereo_cmap, title=f"Original STEREO Map\nSTEREO " + \
         str(STEREO_MIN_WAVELENGTH) + "-" + str(STEREO_MAX_WAVELENGTH) + f" {stereomap.date}")
-    stereomap.draw_limb(color='black')
-    ax3.tick_params(which='major', direction='in')
-    ax3.grid(False)
-    ax3.set_xlabel(X_LABEL)
-    ax3.set_ylabel(Y_LABEL)
-    add_minor_ticks(ax3)
-    plt.colorbar(fraction=0.046, pad=0.04)
     plt.set_cmap('YlGn')
 
-    # projected STEREO map
+    # Projected STEREO map.
     ax4 = plt.subplot(2, 2, 4, projection=projected_stereomap)
-    projected_stereomap.plot(cmap=reversed_stereo_cmap, title="Reprojected to an Earth Observer\nSTEREO " + \
+    plot_map(projected_stereomap, ax4, reversed_stereo_cmap, title="Reprojected to an Earth Observer\nSTEREO " + \
         str(STEREO_MIN_WAVELENGTH) + "-" + str(STEREO_MAX_WAVELENGTH) + f" {projected_stereomap.date}")
-    projected_stereomap.draw_limb(color='black')
-    ax4.tick_params(which='major', direction='in')
-    ax4.grid(False)
-    ax4.set_xlabel(X_LABEL)
-    ax4.set_ylabel(Y_LABEL)
-    add_minor_ticks(ax4)
-    plt.colorbar(fraction=0.046, pad=0.04)
     plt.set_cmap('YlGn')
 
-    draw_nustar_fov(projected_stereomap, ax4, center_x, center_y, layers, rotate=rotate, pixscale=u.Quantity(stereomap.scale).value[0])
+    if center is not None:
+        draw_nustar_fov(projected_aiamap, ax2, *center, layers,
+            angle=angle, pixscale=u.Quantity(aiamap.scale).value[0])
+        draw_nustar_fov(projected_stereomap, ax4, *center, layers,
+            angle=angle, pixscale=u.Quantity(stereomap.scale).value[0])
 
-    if type(markers)!=type(None):
-        points_of_interest_marker(x=markers[0], y=markers[1], ax=ax2, frame=projected_aiamap)
-        points_of_interest_marker(x=markers[0], y=markers[1], ax=ax4, frame=projected_stereomap)
-    if type(psp_loc)!=type(None):
+    if psp_loc is not None:
         for coord in psp_loc:
             plot_psp_loc(*coord, ax=ax2, frame=projected_aiamap)
             plot_psp_loc(*coord, ax=ax4, frame=projected_stereomap)
+    if markers is not None:
+        for coord in markers:
+            points_of_interest_marker(*coord, ax=ax2, frame=projected_aiamap)
+            points_of_interest_marker(*coord, ax=ax4, frame=projected_stereomap)
 
     plt.subplots_adjust(wspace=0.3, hspace=0.18)
 
-    return (ax1,ax2,ax3,ax4)
+    return (ax1, ax2, ax3, ax4)
