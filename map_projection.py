@@ -69,8 +69,8 @@ def most_recent_map(_map):
     else:
         print("Don't know what to do! Please set _map=\"aia\" or \"stereo\".")
         
-    current = datetime.datetime.now()
-    current_date = current.strftime("%Y-%m-%dT%H:%M:%S")    
+    current = datetime.datetime.now()#-datetime.timedelta(days=4)
+    current_date = current.strftime("%Y-%m-%dT%H:%M:%S")
 
     past = current-datetime.timedelta(**look_back)
     past_date = past.strftime("%Y-%m-%dT%H:%M:%S")
